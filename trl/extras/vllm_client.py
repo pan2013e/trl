@@ -31,7 +31,11 @@ if is_requests_available():
 if is_vllm_available():
     from vllm.distributed.device_communicators.pynccl import PyNcclCommunicator
     from vllm.distributed.utils import StatelessProcessGroup
-
+    from vllm.entrypoints.openai.protocol import LogitsProcessors
+else:
+    raise ImportError(
+        "vLLM is not installed. Please install it with `pip install vllm`."
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +144,7 @@ class VLLMClient:
         min_p: float = 0.0,
         max_tokens: int = 16,
         guided_decoding_regex: Optional[str] = None,
+        logits_processors: Optional[LogitsProcessors] = None,
     ) -> list[list[int]]:
         """
         Generates model completions for the provided prompts.
@@ -163,6 +168,8 @@ class VLLMClient:
                 Maximum number of tokens to generate for each prompt.
             guided_decoding_regex (`str` or `None`, *optional*, defaults to `None`):
                 Regular expression to guide the decoding process.
+            logits_processors (`LogitsProcessors` or `None`, *optional*, defaults to `None`):
+                Logits processors to apply during decoding. If `None`, no processors are applied.`LogitsProcessors` is a list of `str` or `LogitsProcessorConstructor` objects. See the vLLM documentation (`vllm.entrypoints.openai.protocol`) for more details.
 
         Returns:
             `list[list[int]]`:
@@ -181,6 +188,7 @@ class VLLMClient:
                 "min_p": min_p,
                 "max_tokens": max_tokens,
                 "guided_decoding_regex": guided_decoding_regex,
+                "logits_processors": logits_processors,
             },
         )
         if response.status_code == 200:

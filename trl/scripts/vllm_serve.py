@@ -16,7 +16,7 @@ import argparse
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import torch
 import torch.distributed as dist
@@ -42,10 +42,14 @@ if is_vllm_available():
     from vllm.distributed.device_communicators.pynccl import PyNcclCommunicator
     from vllm.distributed.parallel_state import get_world_group
     from vllm.distributed.utils import StatelessProcessGroup
+    from vllm.entrypoints.openai.protocol import LogitsProcessors, LogitsProcessorConstructor
     from vllm.sampling_params import GuidedDecodingParams
+    from vllm.utils import resolve_obj_by_qualname
     from vllm.worker.worker import Worker
 else:
-    Worker = object
+    raise ImportError(
+        "vLLM is not installed. Please install it using `pip install vllm`."
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +231,24 @@ class ScriptArguments:
     )
 
 
+def get_logits_processors(processors: LogitsProcessors) -> list[Any]:
+    logits_processors = []
+    for processor in processors:
+        qualname = processor if isinstance(processor,
+                                            str) else processor.qualname
+        try:
+            logits_processor = resolve_obj_by_qualname(qualname)
+        except Exception as e:
+            raise ValueError(
+                f"Logits processor '{qualname}' could not be resolved: {e}"
+            ) from e
+        if isinstance(processor, LogitsProcessorConstructor):
+            logits_processor = logits_processor(*processor.args or [],
+                                                **processor.kwargs or {})
+        logits_processors.append(logits_processor)
+    return logits_processors
+
+
 def main(script_args: ScriptArguments):
     if not is_fastapi_available():
         raise ImportError(
@@ -296,6 +318,7 @@ def main(script_args: ScriptArguments):
         min_p: float = 0.0
         max_tokens: int = 16
         guided_decoding_regex: Optional[str] = None
+        logits_processors: Optional[LogitsProcessors] = None
 
     class GenerateResponse(BaseModel):
         completion_ids: list[list[int]]
@@ -329,6 +352,12 @@ def main(script_args: ScriptArguments):
             guided_decoding = GuidedDecodingParams(backend="outlines", regex=request.guided_decoding_regex)
         else:
             guided_decoding = None
+        
+        # Instantiate the logits processors, if enabled
+        if request.logits_processors is not None:
+            logits_processors = get_logits_processors(request.logits_processors)
+        else:
+            logits_processors = None
 
         # Sampling parameters
         sampling_params = SamplingParams(
@@ -340,6 +369,7 @@ def main(script_args: ScriptArguments):
             min_p=request.min_p,
             max_tokens=request.max_tokens,
             guided_decoding=guided_decoding,
+            logits_processors=logits_processors,
         )
         all_outputs = llm.generate(request.prompts, sampling_params=sampling_params)
         completion_ids = [list(output.token_ids) for outputs in all_outputs for output in outputs.outputs]
