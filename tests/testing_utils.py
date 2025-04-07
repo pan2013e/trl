@@ -91,3 +91,17 @@ class RandomPairwiseJudge(BasePairwiseJudge):
             return [random.randint(0, len(completion) - 1) for completion in completions]
         else:
             return [random.random() for _ in range(len(prompts))]
+
+def mock_logits_processor_func(input_ids, logits):
+    logits[:] = float("-inf")
+    logits[50] = 0.0
+    return logits
+    
+class MockLogitsProcessorClass:
+    def __init__(self, force_id: int):
+        self.force_id = force_id
+        
+    def __call__(self, input_ids, logits):
+        logits[:] = float("-inf")
+        logits[self.force_id] = 0.0
+        return logits
