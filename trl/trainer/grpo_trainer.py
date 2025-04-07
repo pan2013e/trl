@@ -543,6 +543,7 @@ class GRPOTrainer(Trainer):
 
             # vLLM specific sampling arguments
             self.guided_decoding_regex = args.vllm_guided_decoding_regex
+            self.logits_processors = args.vllm_logits_processors
 
             self._last_loaded_step = -1  # tag to avoid useless loading during grad accumulation
 
@@ -790,6 +791,7 @@ class GRPOTrainer(Trainer):
                         min_p=0.0 if self.min_p is None else self.min_p,
                         max_tokens=self.max_completion_length,
                         guided_decoding_regex=self.guided_decoding_regex,
+                        logits_processors=self.logits_processors,
                     )
             else:
                 completion_ids = [None] * len(all_prompts_text)
