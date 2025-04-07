@@ -18,6 +18,14 @@ from typing import Optional
 
 from transformers import TrainingArguments
 
+from ..import_utils import is_vllm_available
+
+if is_vllm_available():
+    from vllm.entrypoints.openai.protocol import LogitsProcessors
+else:
+    raise ImportError(
+        "vLLM is not installed. Please install it with `pip install vllm`."
+    )
 
 @dataclass
 class GRPOConfig(TrainingArguments):
@@ -90,6 +98,8 @@ class GRPOConfig(TrainingArguments):
             timeout, a `ConnectionError` is raised.
         vllm_guided_decoding_regex (`str` or `None`, *optional*, defaults to `None`):
             Regex for vLLM guided decoding. If `None` (default), guided decoding is disabled.
+        vllm_logits_processors (`list[str | LogitsProcessorConstructor]` or `None`, *optional*, defaults to `None`):
+            List of logits processors to apply to the generated tokens. If `None` (default), logit processors are disabled. See `vllm.entrypoints.openai.protocol` for more details. Make sure the qualified names of logits processors can be accessed with PYTHONPATH when launching `trl vllm-serve ...`
 
         > Parameters that control the training
 
@@ -249,6 +259,10 @@ class GRPOConfig(TrainingArguments):
     vllm_guided_decoding_regex: Optional[str] = field(
         default=None,
         metadata={"help": "Regex for vLLM guided decoding. If `None` (default), guided decoding is disabled."},
+    )
+    vllm_logits_processors: Optional[LogitsProcessors] = field(
+        default=None,
+        metadata={"help": "Optional logits processors during vLLM generation. If `None`, no processors are applied."},
     )
 
     # Parameters that control the training
